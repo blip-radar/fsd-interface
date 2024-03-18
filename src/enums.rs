@@ -1,5 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
+use bevy_reflect::Reflect;
+
 use crate::messages::*;
 use crate::structs::{RadioFrequency, TransponderCode};
 use crate::{aircraft_config::AircraftConfig, errors::FsdMessageParseError};
@@ -196,7 +198,7 @@ impl FromStr for SimulatorType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub enum FlightRules {
     DVFR,
     SVFR,

@@ -17,3 +17,4 @@ categories = ["parsing", "network-programming"]
 thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
+bevy_reflect = "0.13.0"

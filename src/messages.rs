@@ -4,6 +4,8 @@
 
 use std::fmt::Display;
 
+use bevy_reflect::Reflect;
+
 use crate::{
     aircraft_config::AircraftConfig,
     enums::{
@@ -1576,7 +1578,7 @@ impl FsdErrorMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct FlightPlanMessage {
     pub to: String,
     pub callsign: String,
@@ -1616,7 +1618,7 @@ impl FlightPlanMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Reflect)]
 pub struct FlightPlanAmendmentMessage {
     pub from: String,
     pub to: String,

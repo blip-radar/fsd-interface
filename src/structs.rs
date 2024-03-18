@@ -1,5 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
+use bevy_reflect::Reflect;
+
 use crate::{enums::FlightRules, errors::FsdMessageParseError, util::parse_altitude};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,7 +210,7 @@ impl PlaneInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Reflect)]
 pub struct FlightPlan {
     pub flight_rules: FlightRules,
     pub ac_type: String,
