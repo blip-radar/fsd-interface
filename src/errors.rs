@@ -52,8 +52,6 @@ pub enum FsdMessageParseError {
     InvalidPositionVelocity(String),
     #[error("Unknown message type: {0}")]
     UnknownMessageType(String),
-    #[error("{0} is not a valid ping time")]
-    InvalidPingTime(String),
     #[error("{0} is not a valid server error")]
     InvalidServerError(String),
     #[error("{0} is not a valid client query type")]
