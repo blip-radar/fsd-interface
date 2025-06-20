@@ -74,6 +74,8 @@ pub enum FsdMessageParseError {
     InvalidIPAddress(String),
     #[error("{0} is not a valid port")]
     InvalidPort(String),
+    #[error("{0} is not a valid OLDIADEXP chunk")]
+    InvalidOldiAdexpChunk(String),
 }
 
 /// An error message received from the FSD server

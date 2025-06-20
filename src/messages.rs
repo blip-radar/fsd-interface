@@ -1997,6 +1997,29 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
                     },
                 ))
             }
+            "OLDIADEXP" => {
+                check_min_num_fields!(fields, 6);
+                let msg_id = fields[3].parse().map_err(|_| {
+                    FsdMessageParseError::InvalidOldiAdexpChunk(fields[3..].join(":"))
+                })?;
+                let (chunk_idx, chunk_count) = fields[4]
+                    .split_once('/')
+                    .and_then(|(idx, count)| Some((idx.parse().ok()?, count.parse().ok()?)))
+                    .ok_or_else(|| {
+                        FsdMessageParseError::InvalidOldiAdexpChunk(fields[3..].join(":"))
+                    })?;
+                let payload = fields[5].to_string();
+                Ok(ClientQueryMessage::new(
+                    first,
+                    fields[1],
+                    ClientQueryType::OldiAdexp {
+                        msg_id,
+                        chunk_idx,
+                        chunk_count,
+                        payload,
+                    },
+                ))
+            }
             _ => Err(FsdMessageParseError::UnknownMessageType(
                 fields[2].to_string(),
             )),
@@ -2053,6 +2076,25 @@ impl ClientQueryMessage {
     }
     pub fn capabilities(from: impl AsRef<str>, to: impl AsRef<str>) -> ClientQueryMessage {
         ClientQueryMessage::new(from, to, ClientQueryType::Capabilities)
+    }
+    pub fn oldi_adexp(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        msg_id: u16,
+        chunk_idx: u16,
+        chunk_count: u16,
+        payload: impl Into<String>,
+    ) -> ClientQueryMessage {
+        ClientQueryMessage::new(
+            from,
+            to,
+            ClientQueryType::OldiAdexp {
+                msg_id,
+                chunk_idx,
+                chunk_count,
+                payload: payload.into(),
+            },
+        )
     }
     pub fn is_valid_atc(
         from: impl AsRef<str>,
@@ -2929,5 +2971,70 @@ impl HandoffAcceptMessage {
             to: to.as_ref().to_uppercase(),
             aircraft: aircraft.as_ref().to_uppercase(),
         }
+    }
+}
+
+#[cfg(test)]
+mod oldi_adexp_tests {
+    use super::*;
+    use crate::enums::ClientQueryType;
+
+    #[test]
+    fn oldi_adexp_single_chunk_round_trips() {
+        let msg = ClientQueryMessage::oldi_adexp("EGLL_APP", "EGKK_APP", 7, 1, 1, "-TITLE RRV");
+        let wire = msg.to_string();
+        assert_eq!(wire, "$CQEGLL_APP:EGKK_APP:OLDIADEXP:7:1/1:-TITLE RRV");
+
+        let fields: Vec<&str> = wire.split(':').collect();
+        let parsed = ClientQueryMessage::try_from(fields.as_slice()).unwrap();
+        assert_eq!(parsed.from, "EGLL_APP");
+        assert_eq!(parsed.to, "EGKK_APP");
+        let ClientQueryType::OldiAdexp {
+            msg_id,
+            chunk_idx,
+            chunk_count,
+            payload,
+        } = parsed.query_type
+        else {
+            panic!("expected OldiAdexp query type, got {:?}", parsed.query_type);
+        };
+        assert_eq!(
+            (msg_id, chunk_idx, chunk_count, payload.as_str()),
+            (7, 1, 1, "-TITLE RRV")
+        );
+    }
+
+    #[test]
+    fn oldi_adexp_multi_chunk_round_trips() {
+        let msg = ClientQueryMessage::oldi_adexp("EGLL_APP", "EGKK_APP", 42, 2, 3, "middle chunk");
+        let wire = msg.to_string();
+        let fields: Vec<&str> = wire.split(':').collect();
+        let parsed = ClientQueryMessage::try_from(fields.as_slice()).unwrap();
+        let ClientQueryType::OldiAdexp {
+            msg_id,
+            chunk_idx,
+            chunk_count,
+            payload,
+        } = parsed.query_type
+        else {
+            panic!("expected OldiAdexp query type, got {:?}", parsed.query_type);
+        };
+        assert_eq!(
+            (msg_id, chunk_idx, chunk_count, payload.as_str()),
+            (42, 2, 3, "middle chunk")
+        );
+    }
+
+    #[test]
+    fn oldi_adexp_malformed_chunk_field_is_rejected() {
+        let fields = [
+            "$CQEGLL_APP",
+            "EGKK_APP",
+            "OLDIADEXP",
+            "7",
+            "notachunk",
+            "payload",
+        ];
+        assert!(ClientQueryMessage::try_from(fields.as_slice()).is_err());
     }
 }

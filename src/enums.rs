@@ -29,6 +29,7 @@ pub enum ClientCapability {
     GlobalData,
     Simulated,
     ObsPilot,
+    OldiAdexp,
 }
 impl FromStr for ClientCapability {
     type Err = FsdMessageParseError;
@@ -54,6 +55,7 @@ impl FromStr for ClientCapability {
             "GLOBALDATA" => Ok(ClientCapability::GlobalData),
             "SIMULATED" => Ok(ClientCapability::Simulated),
             "OBSPILOT" => Ok(ClientCapability::ObsPilot),
+            "OLDIADEXP" => Ok(ClientCapability::OldiAdexp),
             _ => Err(FsdMessageParseError::InvalidClientCapability(s.to_string())),
         }
     }
@@ -81,6 +83,7 @@ impl Display for ClientCapability {
             ClientCapability::GlobalData => write!(f, "GLOBALDATA"),
             ClientCapability::Simulated => write!(f, "SIMULATED"),
             ClientCapability::ObsPilot => write!(f, "OBSPILOT"),
+            ClientCapability::OldiAdexp => write!(f, "OLDIADEXP"),
         }
     }
 }
@@ -655,6 +658,12 @@ pub enum ClientQueryType {
         aircraft_callsign: String,
         contents: String,
     }, //GD
+    OldiAdexp {
+        msg_id: u16,
+        chunk_idx: u16,
+        chunk_count: u16,
+        payload: String,
+    }, //OLDIADEXP
 }
 
 impl Display for ClientQueryType {
@@ -748,9 +757,25 @@ impl Display for ClientQueryType {
             } => {
                 write!(f, "GD:{}:{}", aircraft_callsign, contents)
             }
+            ClientQueryType::OldiAdexp {
+                msg_id,
+                chunk_idx,
+                chunk_count,
+                payload,
+            } => {
+                write!(
+                    f,
+                    "OLDIADEXP:{}:{}/{}:{}",
+                    msg_id, chunk_idx, chunk_count, payload
+                )
+            }
         }
     }
 }
+
+/// Maximum length in bytes of a single FSD wire message (excluding the trailing line
+/// terminator), used to size `OLDIADEXP` chunk payloads.
+pub const MAX_FSD_PACKET_LEN: usize = 1536;
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
