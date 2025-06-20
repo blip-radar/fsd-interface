@@ -1,3 +1,5 @@
+use tracing::debug;
+
 use crate::{enums::ClientCapability, errors::FsdMessageParseError, structs::RadioFrequency};
 use std::str::FromStr;
 
@@ -155,7 +157,11 @@ pub fn read_capabilities(caps_str: &[&str]) -> Vec<ClientCapability> {
         if let Ok(capability) = k.to_uppercase().as_str().parse() {
             if v == "1" {
                 capabilities.push(capability);
+            } else {
+                debug!("Capability with value!=1: {k}={v}");
             }
+        } else {
+            debug!("Unknown capability: {k} in {caps_str:?}");
         }
     }
     capabilities
