@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use crate::{enums::FlightRules, errors::FsdMessageParseError, Level};
+use crate::{Level, enums::FlightRules, errors::FsdMessageParseError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransponderCode(u16);

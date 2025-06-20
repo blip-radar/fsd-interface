@@ -4,6 +4,7 @@ use std::{fmt::Display, str::FromStr};
 use crate::messages::*;
 use crate::structs::{RadioFrequency, TransponderCode};
 use crate::{aircraft_config::AircraftConfig, errors::FsdMessageParseError};
+use bevy_ecs::component::Component;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1149,9 +1150,9 @@ impl Display for ScratchPad {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Component, Default)]
 pub enum VoiceCapability {
-    Unknown,
+    #[default]
     Voice,
     Text,
     Receive,
@@ -1160,7 +1161,7 @@ impl FromStr for VoiceCapability {
     type Err = FsdMessageParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            return Ok(VoiceCapability::Unknown);
+            return Ok(VoiceCapability::Voice);
         }
         let s = s.to_lowercase();
         match s.as_str() {
@@ -1174,7 +1175,6 @@ impl FromStr for VoiceCapability {
 impl Display for VoiceCapability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            VoiceCapability::Unknown => write!(f, ""),
             VoiceCapability::Voice => write!(f, "v"),
             VoiceCapability::Text => write!(f, "t"),
             VoiceCapability::Receive => write!(f, "r"),

@@ -7,6 +7,7 @@ use std::{fmt::Display, net::Ipv4Addr};
 use chrono::NaiveDateTime;
 
 use crate::{
+    LandLineCommand, LandLineType, Level, ScratchPad,
     aircraft_config::AircraftConfig,
     enums::{
         AtcRating, AtcType, AtisLine, ClientCapability, ClientQueryType, ClientResponseType,
@@ -15,7 +16,7 @@ use crate::{
     },
     errors::{FsdError, FsdMessageParseError},
     structs::{FlightPlan, PlaneInfo, RadioFrequency, TransponderCode},
-    util, LandLineCommand, LandLineType, Level, ScratchPad,
+    util,
 };
 
 pub const SERVER_CALLSIGN: &str = "SERVER";
@@ -1774,10 +1775,10 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
             )),
             "HLP" => {
                 let mut message = fields.get(3).map(|s| s.to_string());
-                if let Some(ref msg) = message {
-                    if msg.is_empty() {
-                        message = None;
-                    }
+                if let Some(ref msg) = message
+                    && msg.is_empty()
+                {
+                    message = None;
                 }
                 Ok(ClientQueryMessage::new(
                     first,
@@ -1787,10 +1788,10 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
             }
             "NOHLP" => {
                 let mut message = fields.get(3).map(|s| s.to_string());
-                if let Some(ref msg) = message {
-                    if msg.is_empty() {
-                        message = None;
-                    }
+                if let Some(ref msg) = message
+                    && msg.is_empty()
+                {
+                    message = None;
                 }
                 Ok(ClientQueryMessage::new(
                     first,
@@ -2365,7 +2366,7 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
                     _ => {
                         return Err(FsdMessageParseError::InvalidValidAtcStatus(
                             fields[3].to_string(),
-                        ))
+                        ));
                     }
                 };
                 let atc_callsign = fields.get(4).unwrap_or(&fields[1]).to_uppercase();
@@ -2382,7 +2383,7 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
             _ => {
                 return Err(FsdMessageParseError::UnknownMessageType(
                     fields[2].to_string(),
-                ))
+                ));
             }
         };
         Ok(ClientQueryResponseMessage::new(from, to, response_type))
@@ -2712,7 +2713,7 @@ impl TryFrom<&[&str]> for SharedStateMessage {
             _ => {
                 return Err(FsdMessageParseError::InvalidSharedStateType(
                     fields[3].to_string(),
-                ))
+                ));
             }
         };
 
