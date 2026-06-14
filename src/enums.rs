@@ -805,7 +805,7 @@ impl Display for ClientQueryType {
 }
 
 #[allow(unused)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OngoingCoordinationType {
     Point { point: String },
     Level { level: Level },
@@ -824,7 +824,7 @@ impl OngoingCoordinationType {
 }
 
 #[allow(unused)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtisLine {
     VoiceServer(String),
     TextLine(String),
@@ -1139,7 +1139,7 @@ pub enum LandLineCommand {
     End,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operator {
     Exactly,
     OrLess,
