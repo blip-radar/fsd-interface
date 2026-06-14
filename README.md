@@ -1,4 +1,4 @@
-# FSD Messages
+# FSD Interface
 
 ## What is FSD?
 
@@ -69,7 +69,7 @@ if let FsdMessage::ClientQueryMessage(client_query_message) = message_deserialis
 ## Disclaimer
  
 It is against the VATSIM [Code of Conduct](https://vatsim.net/docs/policy/code-of-conduct) and
-[User Agreement](https://cdn.vatsim.net/policy-documents/User_Agreement_v1.2.pdf) to attempt to connect to a VATSIM server
+[User Agreement](https://cdn.vatsim.net/policy-documents/User_Agreement_v1.4.pdf) to attempt to connect to a VATSIM server
 with client software that has not been approved for use.
  
 Of course, you're well within your rights to use this crate to write a client that connects to a private FSD server.
