@@ -72,6 +72,8 @@ pub enum FsdMessageParseError {
     InvalidIPAddress(String),
     #[error("{0} is not a valid port")]
     InvalidPort(String),
+    #[error("{0} is not a valid ongoing co-ordination message")]
+    InvalidOngoingCoordination(String),
 }
 
 /// An error message received from the FSD server
