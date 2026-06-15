@@ -29,11 +29,11 @@ pub enum ClientCapability {
     Estimates,
     Simulated,
     ObsPilot,
-    Unknown(String),
+    Custom(String),
 }
 impl ClientCapability {
     pub fn is_known(&self) -> bool {
-        return !matches!(self, ClientCapability::Unknown(_));
+        return !matches!(self, ClientCapability::Custom(_));
     }
 }
 impl<S: AsRef<str>> From<S> for ClientCapability {
@@ -61,7 +61,7 @@ impl<S: AsRef<str>> From<S> for ClientCapability {
             "ESTIMATES" => ClientCapability::Estimates,
             "SIMULATED" => ClientCapability::Simulated,
             "OBSPILOT" => ClientCapability::ObsPilot,
-            _ => ClientCapability::Unknown(value),
+            _ => ClientCapability::Custom(value),
         }
     }
 }
@@ -90,7 +90,7 @@ impl Display for ClientCapability {
             ClientCapability::Estimates => write!(f, "ESTIMATES"),
             ClientCapability::Simulated => write!(f, "SIMULATED"),
             ClientCapability::ObsPilot => write!(f, "OBSPILOT"),
-            ClientCapability::Unknown(value) => write!(f, "{value}"),
+            ClientCapability::Custom(value) => write!(f, "{value}"),
         }
     }
 }
@@ -1130,6 +1130,7 @@ pub enum GroundState {
     Taxi,
     LineUp,
     TakeOff,
+    Arriving,
     TaxiIn,
     OnBlock,
 }
@@ -1144,6 +1145,7 @@ impl Display for GroundState {
             Self::Taxi => write!(f, "TAXI"),
             Self::LineUp => write!(f, "LINEUP"),
             Self::TakeOff => write!(f, "DEPA"),
+            Self::Arriving => write!(f, "ARR"),
             Self::TaxiIn => write!(f, "TXIN"),
             Self::OnBlock => write!(f, "PARK"),
         }
@@ -1217,6 +1219,7 @@ impl FromStr for ScratchPad {
             "LINEUP" => Ok(Self::GroundState(GroundState::LineUp)),
             "TXIN" => Ok(Self::GroundState(GroundState::TaxiIn)),
             "DEPA" => Ok(Self::GroundState(GroundState::TakeOff)),
+            "ARR" => Ok(Self::GroundState(GroundState::Arriving)),
             "PARK" => Ok(Self::GroundState(GroundState::OnBlock)),
             "CLEA" => Ok(Self::ClearanceReceived),
             "NOTC" => Ok(Self::ClearanceCancelled),
