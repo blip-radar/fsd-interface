@@ -680,11 +680,13 @@ pub enum ClientQueryType {
     }, //GD
     ExitCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level
     }, // COPX
     EntryCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level
     }, // COPN
     TransferDirectlyTo {
         aircraft_callsign: String,
@@ -783,43 +785,16 @@ impl Display for ClientQueryType {
             } => {
                 write!(f, "GD:{}:{}", aircraft_callsign, contents)
             },
-            ClientQueryType::ExitCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPX:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPX:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPX:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientQueryType::ExitCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPX:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
             },
-            ClientQueryType::EntryCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPN:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPN:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPN:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientQueryType::EntryCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPN:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
             },
             ClientQueryType::TransferDirectlyTo { aircraft_callsign, receiving_atc_callsign } => {
                 write!(f, "COCTR:{aircraft_callsign}:{receiving_atc_callsign}")
             },
         }
-    }
-}
-
-#[allow(unused)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum OngoingCoordinationType {
-    Point { point: String },
-    Level { level: Level },
-    PointAndLevel { point: String, level: Level }
-}
-impl OngoingCoordinationType {
-    pub fn point(point: impl AsRef<str>) -> Self {
-        Self::Point { point: point.as_ref().to_uppercase() }
-    }
-    pub fn level(level: Level) -> Self {
-        Self::Level { level }
-    }
-    pub fn point_and_level(point: impl AsRef<str>, level: Level) -> Self {
-        Self::PointAndLevel { point: point.as_ref().to_uppercase(), level }
     }
 }
 
@@ -875,19 +850,23 @@ pub enum ClientResponseType {
     },
     AcceptExitCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level
     },
     RefuseExitCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level 
     },
     AcceptEntryCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level
     },
     RefuseEntryCoordination {
         aircraft_callsign: String,
-        coordination: OngoingCoordinationType
+        point: Option<String>,
+        level: Level
     },
     AcceptTransferDirectlyTo {
         aircraft_callsign: String,
@@ -934,33 +913,18 @@ impl Display for ClientResponseType {
                 let valid = if *valid_atc { 'Y' } else { 'N' };
                 write!(f, "ATC:{}:{}", valid, atc_callsign)
             },
-            ClientResponseType::AcceptExitCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPXOK:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPXOK:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPXOK:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientResponseType::AcceptExitCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPXOK:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
             },
-            ClientResponseType::RefuseExitCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPXNO:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPXNO:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPXNO:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientResponseType::RefuseExitCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPXNO:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
+
             },
-            ClientResponseType::AcceptEntryCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPNOK:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPNOK:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPNOK:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientResponseType::AcceptEntryCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPNOK:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
             },
-            ClientResponseType::RefuseEntryCoordination { aircraft_callsign, coordination } => {
-                match coordination {
-                    OngoingCoordinationType::Point { point } => write!(f, "COPXOK:{aircraft_callsign}:{point}:"),
-                    OngoingCoordinationType::Level { level } => write!(f, "COPXOK:{aircraft_callsign}::{level}"),
-                    OngoingCoordinationType::PointAndLevel { point, level } => write!(f, "COPXOK:{aircraft_callsign}:{point}:{level}"),
-                }
+            ClientResponseType::RefuseEntryCoordination { aircraft_callsign, point, level } => {
+                write!(f, "COPNNO:{aircraft_callsign}:{}:{level}", point.as_deref().unwrap_or_default())
             },
             ClientResponseType::AcceptTransferDirectlyTo { aircraft_callsign, receiving_atc_callsign } => {
                 write!(f, "COCTROK:{aircraft_callsign}:{receiving_atc_callsign}")

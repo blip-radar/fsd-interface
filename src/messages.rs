@@ -7,7 +7,7 @@ use std::{fmt::Display, net::Ipv4Addr, str::FromStr};
 use chrono::NaiveDateTime;
 
 use crate::{
-    LandLineCommand, LandLineType, Level, OngoingCoordinationType, ScratchPad, aircraft_config::AircraftConfig, enums::{
+    LandLineCommand, LandLineType, Level, ScratchPad, aircraft_config::AircraftConfig, enums::{
         AtcRating, AtcType, AtisLine, ClientCapability, ClientQueryType, ClientResponseType,
         PilotRating, ProtocolRevision, SharedStateType, SimulatorType, TransponderMode,
         VoiceCapability,
@@ -1991,30 +1991,18 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
                 check_exact_num_fields!(fields, 6);
                 let aircraft_callsign = fields[3].to_uppercase();
                 let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
-                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?;
-                let coordination = match (point, level) {
-                    (Some(point), None) => OngoingCoordinationType::Point { point },
-                    (None, Some(level)) => OngoingCoordinationType::Level { level },
-                    (Some(point), Some(level)) => OngoingCoordinationType::PointAndLevel { point, level },
-                    (None, None) => return Err(FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5]))),
-                };
+                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?.ok_or_else(|| FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5])))?;
                 Ok(
-                    ClientQueryMessage::new(first, fields[1], ClientQueryType::ExitCoordination { aircraft_callsign, coordination })
+                    ClientQueryMessage::new(first, fields[1], ClientQueryType::ExitCoordination { aircraft_callsign, point, level })
                 )
             },
             "COPN" => {
                 check_exact_num_fields!(fields, 6);
                 let aircraft_callsign = fields[3].to_uppercase();
                 let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
-                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?;
-                let coordination = match (point, level) {
-                    (Some(point), None) => OngoingCoordinationType::Point { point },
-                    (None, Some(level)) => OngoingCoordinationType::Level { level },
-                    (Some(point), Some(level)) => OngoingCoordinationType::PointAndLevel { point, level },
-                    (None, None) => return Err(FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5]))),
-                };
+                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?.ok_or_else(|| FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5])))?;
                 Ok(
-                    ClientQueryMessage::new(first, fields[1], ClientQueryType::EntryCoordination { aircraft_callsign, coordination })
+                    ClientQueryMessage::new(first, fields[1], ClientQueryType::EntryCoordination { aircraft_callsign, point, level })
                 )
             },
             "COCTR" => {
@@ -2309,19 +2297,24 @@ impl ClientQueryMessage {
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryMessage::new(from, to, ClientQueryType::EntryCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryMessage::new(from, to, ClientQueryType::EntryCoordination { aircraft_callsign, point, level })
     }
     pub fn exit_coordination(
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryMessage::new(from, to, ClientQueryType::ExitCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryMessage::new(from, to, ClientQueryType::ExitCoordination { aircraft_callsign, point, level })
     }
     pub fn transfer_directly_to(
         from: impl AsRef<str>,
@@ -2447,18 +2440,12 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
                 check_exact_num_fields!(fields, 6);
                 let aircraft_callsign = fields[3].to_uppercase();
                 let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
-                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?;
-                let coordination = match (point, level) {
-                    (Some(point), None) => OngoingCoordinationType::Point { point },
-                    (None, Some(level)) => OngoingCoordinationType::Level { level },
-                    (Some(point), Some(level)) => OngoingCoordinationType::PointAndLevel { point, level },
-                    (None, None) => return Err(FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5]))),
-                };
+                let level = (!fields[5].is_empty()).then(|| Level::from_str(fields[5])).transpose()?.ok_or_else(|| FsdMessageParseError::InvalidOngoingCoordination(format!("{}:{}", fields[4], fields[5])))?;
                 let response_type = match fields[2] {
-                    "COPXOK" => ClientResponseType::AcceptExitCoordination { aircraft_callsign, coordination },
-                    "COPXNO" => ClientResponseType::RefuseExitCoordination { aircraft_callsign, coordination },
-                    "COPNOK" => ClientResponseType::AcceptEntryCoordination { aircraft_callsign, coordination },
-                    "COPNNO" => ClientResponseType::RefuseEntryCoordination { aircraft_callsign, coordination },
+                    "COPXOK" => ClientResponseType::AcceptExitCoordination { aircraft_callsign, point, level },
+                    "COPXNO" => ClientResponseType::RefuseExitCoordination { aircraft_callsign, point, level },
+                    "COPNOK" => ClientResponseType::AcceptEntryCoordination { aircraft_callsign, point, level },
+                    "COPNNO" => ClientResponseType::RefuseEntryCoordination { aircraft_callsign, point, level },
                     _ => unreachable!()
                 };
                 response_type
@@ -2584,37 +2571,47 @@ impl ClientQueryResponseMessage {
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryResponseMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryResponseMessage::new(from, to, ClientResponseType::AcceptEntryCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryResponseMessage::new(from, to, ClientResponseType::AcceptEntryCoordination { aircraft_callsign, point, level })
     }
     pub fn refuse_entry_coordination(
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryResponseMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryResponseMessage::new(from, to, ClientResponseType::RefuseEntryCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryResponseMessage::new(from, to, ClientResponseType::RefuseEntryCoordination { aircraft_callsign, point, level })
     }
     pub fn accept_exit_coordination(
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryResponseMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryResponseMessage::new(from, to, ClientResponseType::AcceptExitCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryResponseMessage::new(from, to, ClientResponseType::AcceptExitCoordination { aircraft_callsign, point, level })
     }
     pub fn refuse_exit_coordination(
         from: impl AsRef<str>,
         to: impl AsRef<str>,
         aircraft_callsign: impl AsRef<str>,
-        coordination_type: OngoingCoordinationType,
+        point: Option<impl AsRef<str>>,
+        level: Level
     ) -> ClientQueryResponseMessage {
         let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
-        ClientQueryResponseMessage::new(from, to, ClientResponseType::RefuseExitCoordination { aircraft_callsign, coordination: coordination_type })
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryResponseMessage::new(from, to, ClientResponseType::RefuseExitCoordination { aircraft_callsign, point, level })
     }
     pub fn accept_transfer_directly_to(
         from: impl AsRef<str>,
