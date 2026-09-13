@@ -749,7 +749,7 @@ impl Display for ClientQueryType {
                 write!(f, "NEWINFO:{}", atis_letter)
             }
             ClientQueryType::SimTime { time } => {
-                write!(f, "SIMTIME:{}", time.format("Y%m%d%H%M%S"))
+                write!(f, "SIMTIME:{}", time.format("%Y%m%d%H%M%S"))
             }
             ClientQueryType::SetGlobalData {
                 aircraft_callsign,
