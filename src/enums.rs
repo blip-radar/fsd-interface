@@ -664,6 +664,10 @@ pub enum ClientQueryType {
         chunk_count: u16,
         payload: String,
     }, //OLDIADEXP
+    Unknown {
+        subtype: String,
+        raw_fields: Vec<String>,
+    }, // any subtype this crate doesn't otherwise recognize
 }
 
 impl Display for ClientQueryType {
@@ -769,6 +773,16 @@ impl Display for ClientQueryType {
                     msg_id, chunk_idx, chunk_count, payload
                 )
             }
+            ClientQueryType::Unknown {
+                subtype,
+                raw_fields,
+            } => {
+                write!(f, "{}", subtype)?;
+                for field in raw_fields {
+                    write!(f, ":{}", field)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -824,6 +838,10 @@ pub enum ClientResponseType {
         atc_callsign: String,
         valid_atc: bool,
     },
+    Unknown {
+        subtype: String,
+        raw_fields: Vec<String>,
+    },
 }
 impl Display for ClientResponseType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -860,6 +878,16 @@ impl Display for ClientResponseType {
             } => {
                 let valid = if *valid_atc { 'Y' } else { 'N' };
                 write!(f, "ATC:{}:{}", valid, atc_callsign)
+            }
+            ClientResponseType::Unknown {
+                subtype,
+                raw_fields,
+            } => {
+                write!(f, "{}", subtype)?;
+                for field in raw_fields {
+                    write!(f, ":{}", field)?;
+                }
+                Ok(())
             }
         }
     }

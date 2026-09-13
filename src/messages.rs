@@ -2020,8 +2020,13 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
                     },
                 ))
             }
-            _ => Err(FsdMessageParseError::UnknownMessageType(
-                fields[2].to_string(),
+            subtype => Ok(ClientQueryMessage::new(
+                first,
+                fields[1],
+                ClientQueryType::Unknown {
+                    subtype: subtype.to_string(),
+                    raw_fields: fields[3..].iter().map(|s| s.to_string()).collect(),
+                },
             )),
         }
     }
@@ -2422,11 +2427,10 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
                 let capabilities = util::read_capabilities(&fields[3..]);
                 ClientResponseType::Capabilities { capabilities }
             }
-            _ => {
-                return Err(FsdMessageParseError::UnknownMessageType(
-                    fields[2].to_string(),
-                ));
-            }
+            subtype => ClientResponseType::Unknown {
+                subtype: subtype.to_string(),
+                raw_fields: fields[3..].iter().map(|s| s.to_string()).collect(),
+            },
         };
         Ok(ClientQueryResponseMessage::new(from, to, response_type))
     }
@@ -3036,5 +3040,69 @@ mod oldi_adexp_tests {
             "payload",
         ];
         assert!(ClientQueryMessage::try_from(fields.as_slice()).is_err());
+    }
+}
+
+#[cfg(test)]
+mod unknown_subtype_tests {
+    use super::*;
+    use crate::enums::{ClientQueryType, ClientResponseType};
+
+    #[test]
+    fn unknown_query_subtype_round_trips() {
+        let wire = "$CQEDDW_TWR:EDMM_BBG_CTR:SCOMM:DLH8JW:TAXI:(null)";
+        let fields: Vec<&str> = wire.split(':').collect();
+        let parsed = ClientQueryMessage::try_from(fields.as_slice()).unwrap();
+        assert_eq!(parsed.from, "EDDW_TWR");
+        assert_eq!(parsed.to, "EDMM_BBG_CTR");
+        let ClientQueryType::Unknown {
+            subtype,
+            raw_fields,
+        } = &parsed.query_type
+        else {
+            panic!("expected Unknown query type, got {:?}", parsed.query_type);
+        };
+        assert_eq!(subtype, "SCOMM");
+        assert_eq!(raw_fields, &["DLH8JW", "TAXI", "(null)"]);
+        assert_eq!(parsed.to_string(), wire);
+    }
+
+    #[test]
+    fn unknown_query_subtype_with_no_fields_round_trips() {
+        let wire = "$CQEDDW_TWR:EDMM_BBG_CTR:IS";
+        let fields: Vec<&str> = wire.split(':').collect();
+        let parsed = ClientQueryMessage::try_from(fields.as_slice()).unwrap();
+        let ClientQueryType::Unknown {
+            subtype,
+            raw_fields,
+        } = &parsed.query_type
+        else {
+            panic!("expected Unknown query type, got {:?}", parsed.query_type);
+        };
+        assert_eq!(subtype, "IS");
+        assert!(raw_fields.is_empty());
+        assert_eq!(parsed.to_string(), wire);
+    }
+
+    #[test]
+    fn unknown_response_subtype_round_trips() {
+        let wire = "$CREDMM_BBG_CTR:EDDW_TWR:IS:FRS54";
+        let fields: Vec<&str> = wire.split(':').collect();
+        let parsed = ClientQueryResponseMessage::try_from(fields.as_slice()).unwrap();
+        assert_eq!(parsed.from, "EDMM_BBG_CTR");
+        assert_eq!(parsed.to, "EDDW_TWR");
+        let ClientResponseType::Unknown {
+            subtype,
+            raw_fields,
+        } = &parsed.response_type
+        else {
+            panic!(
+                "expected Unknown response type, got {:?}",
+                parsed.response_type
+            );
+        };
+        assert_eq!(subtype, "IS");
+        assert_eq!(raw_fields, &["FRS54"]);
+        assert_eq!(parsed.to_string(), wire);
     }
 }
