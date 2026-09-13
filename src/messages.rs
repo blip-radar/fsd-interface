@@ -2,7 +2,7 @@
 //!
 //!
 
-use std::{fmt::Display, net::Ipv4Addr};
+use std::{fmt::Display, net::Ipv4Addr, str::FromStr as _};
 
 use chrono::NaiveDateTime;
 
@@ -22,6 +22,7 @@ use crate::{
 pub const SERVER_CALLSIGN: &str = "SERVER";
 pub const ATC_TEXT_CHANNEL_FREQUENCY: RadioFrequency = RadioFrequency(149, 999);
 pub const AIRCRAFT_HANDLER_RECIPIENT: &str = "@94835";
+pub const FLIGHT_PLAN_HANDLER_RECIPIENT: &str = "FP";
 
 macro_rules! check_min_num_fields {
     ($fields: ident, $i: literal) => {
@@ -50,7 +51,6 @@ pub struct AtcRegisterMessage {
     pub rating: AtcRating,
     pub protocol: ProtocolRevision,
 }
-//#AAEGPH_M_APP:SERVER:Caspian:newcert:test:4:9:1:0:55.95000:-3.37250:100
 
 impl Display for AtcRegisterMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -119,7 +119,6 @@ pub struct PilotRegisterMessage {
     pub simulator_type: SimulatorType,
     pub real_name: String,
 }
-//#APEZY38UB:SERVER:newcert::1:1:1
 impl Display for PilotRegisterMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -1591,9 +1590,6 @@ pub struct FlightPlanMessage {
     pub flight_plan: FlightPlan,
 }
 
-//$FP(CALLSIGN):(RECIPIENT):(FLIGHT RULES):(AC TYPE):(FILED SPEED):(ORIGIN):(SCHEDULED DEPARTURE TIME):(ACTUAL DEPARTURE TIME):
-//(CRUISE LEVEL):(DESTINATION):(HOURS ENROUTE):(MINS ENROUTE):(HOURS FUEL):(MINS FUEL):(ALTERNATE):(REMARKS)
-
 impl Display for FlightPlanMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "$FP{}:{}:{}", self.callsign, self.to, self.flight_plan,)
@@ -1631,9 +1627,6 @@ pub struct FlightPlanAmendmentMessage {
     pub callsign: String,
     pub flight_plan: FlightPlan,
 }
-
-//$FP(CALLSIGN):(RECIPIENT):(FLIGHT RULES):(AC TYPE):(FILED SPEED):(ORIGIN):(SCHEDULED DEPARTURE TIME):(ACTUAL DEPARTURE TIME):
-//(CRUISE LEVEL):(DESTINATION):(HOURS ENROUTE):(MINS ENROUTE):(HOURS FUEL):(MINS FUEL):(ALTERNATE):(REMARKS)
 
 impl Display for FlightPlanAmendmentMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1895,7 +1888,7 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
                     fields[1],
                     ClientQueryType::SetVoiceType {
                         aircraft_callsign: fields[3].to_uppercase(),
-                        voice_capability: fields[4].parse()?,
+                        voice_capability: fields[4].into(),
                     },
                 ))
             }
@@ -1994,6 +1987,71 @@ impl TryFrom<&[&str]> for ClientQueryMessage {
                     ClientQueryType::SetGlobalData {
                         aircraft_callsign,
                         contents,
+                    },
+                ))
+            }
+            "COPX" => {
+                check_exact_num_fields!(fields, 6);
+                let aircraft_callsign = fields[3].to_uppercase();
+                let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
+                let level = (!fields[5].is_empty())
+                    .then(|| Level::from_str(fields[5]))
+                    .transpose()?
+                    .ok_or_else(|| {
+                        FsdMessageParseError::InvalidOngoingCoordination(format!(
+                            "{}:{}",
+                            fields[4], fields[5]
+                        ))
+                    })?;
+                Ok(ClientQueryMessage::new(
+                    first,
+                    fields[1],
+                    ClientQueryType::ExitCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                ))
+            }
+            "COPN" => {
+                check_exact_num_fields!(fields, 6);
+                let aircraft_callsign = fields[3].to_uppercase();
+                let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
+                let level = (!fields[5].is_empty())
+                    .then(|| Level::from_str(fields[5]))
+                    .transpose()?
+                    .ok_or_else(|| {
+                        FsdMessageParseError::InvalidOngoingCoordination(format!(
+                            "{}:{}",
+                            fields[4], fields[5]
+                        ))
+                    })?;
+                Ok(ClientQueryMessage::new(
+                    first,
+                    fields[1],
+                    ClientQueryType::EntryCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                ))
+            }
+            "COCTR" => {
+                check_exact_num_fields!(fields, 5);
+                if fields[3].is_empty() || fields[4].is_empty() {
+                    return Err(FsdMessageParseError::InvalidOngoingCoordination(format!(
+                        "{}:{}",
+                        fields[3], fields[4]
+                    )));
+                }
+                let aircraft_callsign = fields[3].to_uppercase();
+                let receiving_atc_callsign = fields[4].to_uppercase();
+                Ok(ClientQueryMessage::new(
+                    first,
+                    fields[1],
+                    ClientQueryType::TransferDirectlyTo {
+                        aircraft_callsign,
+                        receiving_atc_callsign,
                     },
                 ))
             }
@@ -2321,6 +2379,62 @@ impl ClientQueryMessage {
             },
         )
     }
+    pub fn entry_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryMessage::new(
+            from,
+            to,
+            ClientQueryType::EntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn exit_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryMessage::new(
+            from,
+            to,
+            ClientQueryType::ExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn transfer_directly_to(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        receiving_atc_callsign: impl AsRef<str>,
+    ) -> ClientQueryMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let receiving_atc_callsign = receiving_atc_callsign.as_ref().to_uppercase();
+        ClientQueryMessage::new(
+            from,
+            to,
+            ClientQueryType::TransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
+            },
+        )
+    }
 }
 
 #[non_exhaustive]
@@ -2377,6 +2491,16 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
                             atis_line: AtisLine::EndMarker(line_count),
                         }
                     }
+                    "A" => {
+                        let letter = fields[4]
+                            .to_uppercase()
+                            .chars()
+                            .next()
+                            .filter(|letter| letter.is_ascii_uppercase());
+                        ClientResponseType::ATIS {
+                            atis_line: AtisLine::AtisLetter(letter),
+                        }
+                    }
                     _ => return Err(FsdMessageParseError::InvalidATISLine(fields[3].to_string())),
                 }
             }
@@ -2426,6 +2550,67 @@ impl TryFrom<&[&str]> for ClientQueryResponseMessage {
                 check_min_num_fields!(fields, 4);
                 let capabilities = util::read_capabilities(&fields[3..]);
                 ClientResponseType::Capabilities { capabilities }
+            }
+            "COPXOK" | "COPNOK" | "COPXNO" | "COPNNO" => {
+                check_exact_num_fields!(fields, 6);
+                let aircraft_callsign = fields[3].to_uppercase();
+                let point = (!fields[4].is_empty()).then(|| fields[4].to_uppercase());
+                let level = (!fields[5].is_empty())
+                    .then(|| Level::from_str(fields[5]))
+                    .transpose()?
+                    .ok_or_else(|| {
+                        FsdMessageParseError::InvalidOngoingCoordination(format!(
+                            "{}:{}",
+                            fields[4], fields[5]
+                        ))
+                    })?;
+
+                match fields[2] {
+                    "COPXOK" => ClientResponseType::AcceptExitCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                    "COPXNO" => ClientResponseType::RefuseExitCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                    "COPNOK" => ClientResponseType::AcceptEntryCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                    "COPNNO" => ClientResponseType::RefuseEntryCoordination {
+                        aircraft_callsign,
+                        point,
+                        level,
+                    },
+                    _ => unreachable!(),
+                }
+            }
+
+            "COCTROK" | "COCTRNO" => {
+                check_exact_num_fields!(fields, 5);
+                if fields[3].is_empty() || fields[4].is_empty() {
+                    return Err(FsdMessageParseError::InvalidOngoingCoordination(format!(
+                        "{}:{}",
+                        fields[3], fields[4]
+                    )));
+                }
+                let aircraft_callsign = fields[3].to_uppercase();
+                let receiving_atc_callsign = fields[4].to_uppercase();
+                match fields[2] {
+                    "COCTROK" => ClientResponseType::AcceptTransferDirectlyTo {
+                        aircraft_callsign,
+                        receiving_atc_callsign,
+                    },
+                    "COCTRNO" => ClientResponseType::RefuseTransferDirectlyTo {
+                        aircraft_callsign,
+                        receiving_atc_callsign,
+                    },
+                    _ => unreachable!(),
+                }
             }
             subtype => ClientResponseType::Unknown {
                 subtype: subtype.to_string(),
@@ -2526,6 +2711,118 @@ impl ClientQueryResponseMessage {
             ClientResponseType::IsValidATC {
                 atc_callsign: atc_callsign.as_ref().to_uppercase(),
                 valid_atc: valid,
+            },
+        )
+    }
+    pub fn accept_entry_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::AcceptEntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn refuse_entry_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::RefuseEntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn accept_exit_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::AcceptExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn refuse_exit_coordination(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        point: Option<impl AsRef<str>>,
+        level: Level,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let point = point.map(|point| point.as_ref().to_uppercase());
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::RefuseExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            },
+        )
+    }
+    pub fn accept_transfer_directly_to(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        receiving_atc_callsign: impl AsRef<str>,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let receiving_atc_callsign = receiving_atc_callsign.as_ref().to_uppercase();
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::AcceptTransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
+            },
+        )
+    }
+    pub fn refuse_transfer_directly_to(
+        from: impl AsRef<str>,
+        to: impl AsRef<str>,
+        aircraft_callsign: impl AsRef<str>,
+        receiving_atc_callsign: impl AsRef<str>,
+    ) -> ClientQueryResponseMessage {
+        let aircraft_callsign = aircraft_callsign.as_ref().to_uppercase();
+        let receiving_atc_callsign = receiving_atc_callsign.as_ref().to_uppercase();
+        ClientQueryResponseMessage::new(
+            from,
+            to,
+            ClientResponseType::RefuseTransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
             },
         )
     }
@@ -2633,7 +2930,7 @@ impl TryFrom<&[&str]> for SharedStateMessage {
             }
             "VT" => {
                 check_min_num_fields!(fields, 6);
-                let voice_capability: VoiceCapability = fields[5].parse()?;
+                let voice_capability: VoiceCapability = fields[5].into();
                 SharedStateType::VoiceType {
                     aircraft_callsign: fields[4].to_uppercase(),
                     voice_capability,

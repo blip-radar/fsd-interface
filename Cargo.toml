@@ -1,8 +1,8 @@
 [package]
 name = "fsd_interface"
-version = "0.3.1"
+version = "0.4.4"
 edition = "2024"
-authors = ["Caspian Merlin <chpmerlin@gmail.com>"]
+authors = ["Caspian Merlin <dev@cmerlin.uk>"]
 description = "A Rust crate for serialising and deserialising FSD (Flight Simulator Daeomon) protocol network messages"
 readme = "README.md"
 repository = "https://github.com/azimuth-radar/fsd-interface"
@@ -15,8 +15,7 @@ categories = ["parsing", "network-programming"]
 
 [dependencies]
 bevy_ecs = "0.18"
-thiserror = "2"
+chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-chrono = "0.4.38"
-tracing = "0.1.41"
+thiserror = "2"

@@ -7,7 +7,7 @@ use crate::{aircraft_config::AircraftConfig, errors::FsdMessageParseError};
 use bevy_ecs::component::Component;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClientCapability {
     Version,
     ATCInfo,
@@ -27,42 +27,52 @@ pub enum ClientCapability {
     NewInfo,
     Mumble,
     GlobalData,
+    Estimates,
     Simulated,
     ObsPilot,
     OldiAdexp,
+    Custom(String),
 }
-impl FromStr for ClientCapability {
-    type Err = FsdMessageParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_uppercase().as_str() {
-            "VERSION" => Ok(ClientCapability::Version),
-            "ATCINFO" => Ok(ClientCapability::ATCInfo),
-            "MODELDESC" => Ok(ClientCapability::ModelDesc),
-            "ACCONFIG" => Ok(ClientCapability::ACConfig),
-            "VISUPDATE" => Ok(ClientCapability::VisUpdate),
-            "RADARUPDATE" => Ok(ClientCapability::RadarUpdate),
-            "ATCMULTI" => Ok(ClientCapability::ATCMulti),
-            "SECPOS" => Ok(ClientCapability::SecPos),
-            "ICAOEQ" => Ok(ClientCapability::IcaoEq),
-            "FASTPOS" => Ok(ClientCapability::FastPos),
-            "ONGOINGCOORD" => Ok(ClientCapability::OngoingCoord),
-            "INTERIMPOS" => Ok(ClientCapability::InterimPos),
-            "STEALTH" => Ok(ClientCapability::Stealth),
-            "TEAMSPEAK" => Ok(ClientCapability::Teamspeak),
-            "NEWATIS" => Ok(ClientCapability::NewATIS),
-            "NEWINFO" => Ok(ClientCapability::NewInfo),
-            "MUMBLE" => Ok(ClientCapability::Mumble),
-            "GLOBALDATA" => Ok(ClientCapability::GlobalData),
-            "SIMULATED" => Ok(ClientCapability::Simulated),
-            "OBSPILOT" => Ok(ClientCapability::ObsPilot),
-            "OLDIADEXP" => Ok(ClientCapability::OldiAdexp),
-            _ => Err(FsdMessageParseError::InvalidClientCapability(s.to_string())),
+
+impl ClientCapability {
+    pub fn is_known(&self) -> bool {
+        !matches!(self, ClientCapability::Custom(_))
+    }
+}
+impl<S: AsRef<str>> From<S> for ClientCapability {
+    fn from(value: S) -> Self {
+        let value = value.as_ref().to_uppercase();
+        match value.as_str() {
+            "VERSION" => ClientCapability::Version,
+            "ATCINFO" => ClientCapability::ATCInfo,
+            "MODELDESC" => ClientCapability::ModelDesc,
+            "ACCONFIG" => ClientCapability::ACConfig,
+            "VISUPDATE" => ClientCapability::VisUpdate,
+            "RADARUPDATE" => ClientCapability::RadarUpdate,
+            "ATCMULTI" => ClientCapability::ATCMulti,
+            "SECPOS" => ClientCapability::SecPos,
+            "ICAOEQ" => ClientCapability::IcaoEq,
+            "FASTPOS" => ClientCapability::FastPos,
+            "ONGOINGCOORD" => ClientCapability::OngoingCoord,
+            "INTERIMPOS" => ClientCapability::InterimPos,
+            "STEALTH" => ClientCapability::Stealth,
+            "TEAMSPEAK" => ClientCapability::Teamspeak,
+            "NEWATIS" => ClientCapability::NewATIS,
+            "NEWINFO" => ClientCapability::NewInfo,
+            "MUMBLE" => ClientCapability::Mumble,
+            "GLOBALDATA" => ClientCapability::GlobalData,
+            "ESTIMATES" => ClientCapability::Estimates,
+            "SIMULATED" => ClientCapability::Simulated,
+            "OBSPILOT" => ClientCapability::ObsPilot,
+            "OLDIADEXP" => ClientCapability::OldiAdexp,
+            _ => ClientCapability::Custom(value),
         }
     }
 }
+
 impl Display for ClientCapability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
+        match self {
             ClientCapability::ACConfig => write!(f, "ACCONFIG"),
             ClientCapability::ATCInfo => write!(f, "ATCINFO"),
             ClientCapability::ModelDesc => write!(f, "MODELDESC"),
@@ -81,9 +91,11 @@ impl Display for ClientCapability {
             ClientCapability::NewInfo => write!(f, "NEWINFO"),
             ClientCapability::Mumble => write!(f, "MUMBLE"),
             ClientCapability::GlobalData => write!(f, "GLOBALDATA"),
+            ClientCapability::Estimates => write!(f, "ESTIMATES"),
             ClientCapability::Simulated => write!(f, "SIMULATED"),
             ClientCapability::ObsPilot => write!(f, "OBSPILOT"),
             ClientCapability::OldiAdexp => write!(f, "OLDIADEXP"),
+            ClientCapability::Custom(value) => write!(f, "{value}"),
         }
     }
 }
@@ -275,6 +287,18 @@ pub enum AtcType {
     Approach,
     Centre,
 }
+impl AtcType {
+    pub fn max_range(&self) -> u16 {
+        match *self {
+            AtcType::Observer => 300,
+            AtcType::FlightServiceStation => 1500,
+            AtcType::Delivery | AtcType::Ground => 20,
+            AtcType::Tower => 50,
+            AtcType::Approach => 150,
+            AtcType::Centre => 600,
+        }
+    }
+}
 
 impl FromStr for AtcType {
     type Err = FsdMessageParseError;
@@ -308,7 +332,7 @@ impl Display for AtcType {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransponderMode {
     Standby,
     ModeC,
@@ -653,7 +677,8 @@ pub enum ClientQueryType {
         surface_wind: String,
         pressure: String,
     }, //NEWATIS
-    //Estimate,                                                                     //EST
+    //Estimate,
+    //EST
     SetGlobalData {
         aircraft_callsign: String,
         contents: String,
@@ -664,6 +689,20 @@ pub enum ClientQueryType {
         chunk_count: u16,
         payload: String,
     }, //OLDIADEXP
+    ExitCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    }, // COPX
+    EntryCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    }, // COPN
+    TransferDirectlyTo {
+        aircraft_callsign: String,
+        receiving_atc_callsign: String,
+    }, // COCTR
     Unknown {
         subtype: String,
         raw_fields: Vec<String>,
@@ -773,6 +812,34 @@ impl Display for ClientQueryType {
                     msg_id, chunk_idx, chunk_count, payload
                 )
             }
+            ClientQueryType::ExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPX:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientQueryType::EntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPN:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientQueryType::TransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
+            } => {
+                write!(f, "COCTR:{aircraft_callsign}:{receiving_atc_callsign}")
+            }
             ClientQueryType::Unknown {
                 subtype,
                 raw_fields,
@@ -792,12 +859,13 @@ impl Display for ClientQueryType {
 pub const MAX_FSD_PACKET_LEN: usize = 1536;
 
 #[allow(unused)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtisLine {
     VoiceServer(String),
     TextLine(String),
     LogoffTime(Option<u16>),
     EndMarker(usize),
+    AtisLetter(Option<char>),
 }
 impl Display for AtisLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -807,6 +875,8 @@ impl Display for AtisLine {
             AtisLine::LogoffTime(Some(time)) => write!(f, "Z:{:04}z", time),
             AtisLine::LogoffTime(None) => write!(f, "Z:z"),
             AtisLine::EndMarker(num_lines) => write!(f, "E:{}", num_lines),
+            AtisLine::AtisLetter(Some(letter)) => write!(f, "A:{}", letter),
+            AtisLine::AtisLetter(None) => write!(f, "A:"),
         }
     }
 }
@@ -837,6 +907,34 @@ pub enum ClientResponseType {
     IsValidATC {
         atc_callsign: String,
         valid_atc: bool,
+    },
+    AcceptExitCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    },
+    RefuseExitCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    },
+    AcceptEntryCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    },
+    RefuseEntryCoordination {
+        aircraft_callsign: String,
+        point: Option<String>,
+        level: Level,
+    },
+    AcceptTransferDirectlyTo {
+        aircraft_callsign: String,
+        receiving_atc_callsign: String,
+    },
+    RefuseTransferDirectlyTo {
+        aircraft_callsign: String,
+        receiving_atc_callsign: String,
     },
     Unknown {
         subtype: String,
@@ -878,6 +976,62 @@ impl Display for ClientResponseType {
             } => {
                 let valid = if *valid_atc { 'Y' } else { 'N' };
                 write!(f, "ATC:{}:{}", valid, atc_callsign)
+            }
+            ClientResponseType::AcceptExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPXOK:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientResponseType::RefuseExitCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPXNO:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientResponseType::AcceptEntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPNOK:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientResponseType::RefuseEntryCoordination {
+                aircraft_callsign,
+                point,
+                level,
+            } => {
+                write!(
+                    f,
+                    "COPNNO:{aircraft_callsign}:{}:{level}",
+                    point.as_deref().unwrap_or_default()
+                )
+            }
+            ClientResponseType::AcceptTransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
+            } => {
+                write!(f, "COCTROK:{aircraft_callsign}:{receiving_atc_callsign}")
+            }
+            ClientResponseType::RefuseTransferDirectlyTo {
+                aircraft_callsign,
+                receiving_atc_callsign,
+            } => {
+                write!(f, "COCTRNO:{aircraft_callsign}:{receiving_atc_callsign}")
             }
             ClientResponseType::Unknown {
                 subtype,
@@ -1060,7 +1214,7 @@ pub enum LandLineCommand {
     End,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operator {
     Exactly,
     OrLess,
@@ -1087,6 +1241,7 @@ pub enum GroundState {
     Taxi,
     LineUp,
     TakeOff,
+    Arriving,
     TaxiIn,
     OnBlock,
 }
@@ -1101,6 +1256,7 @@ impl Display for GroundState {
             Self::Taxi => write!(f, "TAXI"),
             Self::LineUp => write!(f, "LINEUP"),
             Self::TakeOff => write!(f, "DEPA"),
+            Self::Arriving => write!(f, "ARR"),
             Self::TaxiIn => write!(f, "TXIN"),
             Self::OnBlock => write!(f, "PARK"),
         }
@@ -1174,6 +1330,7 @@ impl FromStr for ScratchPad {
             "LINEUP" => Ok(Self::GroundState(GroundState::LineUp)),
             "TXIN" => Ok(Self::GroundState(GroundState::TaxiIn)),
             "DEPA" => Ok(Self::GroundState(GroundState::TakeOff)),
+            "ARR" => Ok(Self::GroundState(GroundState::Arriving)),
             "PARK" => Ok(Self::GroundState(GroundState::OnBlock)),
             "CLEA" => Ok(Self::ClearanceReceived),
             "NOTC" => Ok(Self::ClearanceCancelled),
@@ -1211,21 +1368,17 @@ pub enum VoiceCapability {
     Text,
     Receive,
 }
-impl FromStr for VoiceCapability {
-    type Err = FsdMessageParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
-            return Ok(VoiceCapability::Voice);
-        }
-        let s = s.to_lowercase();
-        match s.as_str() {
-            "v" => Ok(VoiceCapability::Voice),
-            "t" => Ok(VoiceCapability::Text),
-            "r" => Ok(VoiceCapability::Receive),
-            _ => Err(FsdMessageParseError::InvalidVoiceCapability(s)),
+impl<S: AsRef<str>> From<S> for VoiceCapability {
+    fn from(value: S) -> Self {
+        let value = value.as_ref();
+        match value.to_lowercase().as_str() {
+            "t" => VoiceCapability::Text,
+            "r" => VoiceCapability::Receive,
+            _ => VoiceCapability::default(),
         }
     }
 }
+
 impl Display for VoiceCapability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
