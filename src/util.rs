@@ -63,7 +63,8 @@ pub fn split_frequencies(input: &str) -> Vec<RadioFrequency> {
 }
 
 pub(crate) fn group_frequencies_without_symbol(frequencies: &[RadioFrequency]) -> String {
-    let mut freqs_string = String::with_capacity(6 * frequencies.len() - 1);
+    let mut freqs_string =
+        String::with_capacity(frequencies.len().saturating_mul(6).saturating_sub(1));
     let mut freqs = frequencies.iter().peekable();
     while let Some(freq) = freqs.next() {
         freqs_string.push_str(&freq.to_string());
@@ -75,7 +76,8 @@ pub(crate) fn group_frequencies_without_symbol(frequencies: &[RadioFrequency]) -
 }
 
 pub(crate) fn group_frequencies_with_symbol(frequencies: &[RadioFrequency]) -> String {
-    let mut freqs_string = String::with_capacity(6 * frequencies.len() - 1);
+    let mut freqs_string =
+        String::with_capacity(frequencies.len().saturating_mul(6).saturating_sub(1));
     let mut freqs = frequencies.iter().peekable();
     while let Some(freq) = freqs.next() {
         freqs_string.push('@');
